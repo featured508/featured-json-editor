@@ -187,6 +187,7 @@ body.selecting input,body.selecting select,body.selecting textarea{pointer-event
 #cv{overflow:hidden;touch-action:none;background-color:var(--canvas-bg)}
 #gridc{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #world{position:absolute;left:0;top:0;transform-origin:0 0}
+.node.cull{visibility:hidden}
 .row input,.row select{contain:paint}
 .row input:focus-visible,.row select:focus-visible{outline-offset:-2px}
 #wirec{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
@@ -458,8 +459,16 @@ function drawWires(){const p=cur();WIRES=[];if(p){Object.values(p.nodes).forEach
 function paintWires(){const p=cur(),c=document.getElementById('wirec');if(!p||!c)return;const[w,h]=cvSize(),d=window.devicePixelRatio||1,W=Math.round(w*d),H=Math.round(h*d);if(!W||!H)return;
  if(c.width!==W||c.height!==H){c.width=W;c.height=H}
  const x=c.getContext('2d'),v=p.view;x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,W,H);x.setTransform(d*v.z,0,0,d*v.z,d*v.x,d*v.y);x.lineWidth=2.5;x.lineCap='round';
- WIRES.forEach(q=>{const k=Math.max(50,Math.abs(q.b[0]-q.a[0])*.5);x.beginPath();x.moveTo(q.a[0],q.a[1]);x.bezierCurveTo(q.a[0]+k,q.a[1],q.b[0]-k,q.b[1],q.b[0],q.b[1]);x.strokeStyle=q.c;x.setLineDash(q.dash?[6,4]:[]);x.stroke()})}
-let GC=null;
+ const R=viewRect();WIRES.forEach(q=>{const k=Math.max(50,Math.abs(q.b[0]-q.a[0])*.5);if(R&&(Math.max(q.a[0],q.b[0],q.a[0]+k,q.b[0]-k)<R[0]||Math.min(q.a[0],q.b[0],q.a[0]+k,q.b[0]-k)>R[2]||Math.max(q.a[1],q.b[1])<R[1]||Math.min(q.a[1],q.b[1])>R[3]))return;x.beginPath();x.moveTo(q.a[0],q.a[1]);x.bezierCurveTo(q.a[0]+k,q.a[1],q.b[0]-k,q.b[1],q.b[0],q.b[1]);x.strokeStyle=q.c;x.setLineDash(q.dash?[6,4]:[]);x.stroke()})}
+function viewRect(){const p=cur();if(!p)return null;const[w,h]=cvSize();if(!w||!h)return null;const v=p.view,m=Math.max(300,Math.max(w,h)*.5);return[(-m-v.x)/v.z,(-m-v.y)/v.z,(w+m-v.x)/v.z,(h+m-v.y)/v.z]}
+function cullNodes(){const p=cur();if(!p||!tabs[act]||tabs[act].k!=='n')return;const R=viewRect();if(!R)return;
+ const cv0=p.view;if(CULLV&&CULLV.p===p&&CULLV.z===cv0.z&&Math.abs(CULLV.x-cv0.x)<150&&Math.abs(CULLV.y-cv0.y)<150)return;CULLV={p,x:cv0.x,y:cv0.y,z:cv0.z};
+ const ae=document.activeElement,keep=ae&&ae.closest?ae.closest('.node'):null,dragged=(drag&&drag.k==='n')?new Set(drag.s.map(s=>s[0])):null;
+ for(const id in els){const o=els[id],n=p.nodes[id];if(!n)continue;
+  let hide=n.x>R[2]||n.x+230<R[0]||n.y>R[3]||n.y+(o.h||160)<R[1];
+  if(hide&&(o.d===keep||(dragged&&dragged.has(id))))hide=false;
+  if(hide!==o.cull){o.cull=hide;o.d.classList.toggle('cull',hide)}}}
+let GC=null,CULLV=null;
 function drawGrid(){const p=cur(),c=document.getElementById('gridc');if(!p||!c)return;const[w,h]=cvSize(),d=window.devicePixelRatio||1,W=Math.round(w*d),H=Math.round(h*d);
  if(c.width!==W||c.height!==H){c.width=W;c.height=H}
  const x=c.getContext('2d'),v=p.view,lw=Math.max(1,Math.round(d));x.clearRect(0,0,W,H);
@@ -468,7 +477,7 @@ function drawGrid(){const p=cur(),c=document.getElementById('gridc');if(!p||!c)r
   for(let k=Math.ceil(-v.y/step),py=v.y+k*step;py<h;k++,py=v.y+k*step)x.fillRect(0,Math.round(py*d),W,lw)};
  if(!GC){const cs=getComputedStyle(cv);GC={mn:cs.getPropertyValue('--grid-min').trim(),mj:cs.getPropertyValue('--grid-maj').trim()}}
  lines(16*v.z,GC.mn);lines(128*v.z,GC.mj)}
-function setView(){const p=cur();if(!p)return;const v=p.view;$('#world').style.transform=`translate(${v.x}px,${v.y}px) scale(${v.z})`;drawGrid();paintWires();const zt='Zoom '+(Math.abs(v.z-1)<.01?'1:1':v.z.toFixed(2)+':1');if(zt!==ZT){ZT=zt;$('#zm').textContent=zt}}
+function setView(){const p=cur();if(!p)return;const v=p.view;$('#world').style.transform=`translate(${v.x}px,${v.y}px) scale(${v.z})`;drawGrid();paintWires();cullNodes();const zt='Zoom '+(Math.abs(v.z-1)<.01?'1:1':v.z.toFixed(2)+':1');if(zt!==ZT){ZT=zt;$('#zm').textContent=zt}}
 function animateView(p,target,dur){if(p._raf)cancelAnimationFrame(p._raf);const s={...p.view},t0=performance.now();dur=dur||300;
  function step(now){const k=Math.min(1,(now-t0)/dur),e=k<.5?2*k*k:-1+(4-2*k)*k;p.view.x=s.x+(target.x-s.x)*e;p.view.y=s.y+(target.y-s.y)*e;p.view.z=s.z+(target.z-s.z)*e;setView();if(k<1)p._raf=requestAnimationFrame(step);else persist()}
  p._raf=requestAnimationFrame(step)}
@@ -497,6 +506,7 @@ function renderNodes(){const p=cur(),W=$('#world');W.querySelectorAll('.node').f
   d.querySelector('.ty').onchange=e=>chT(p,n,e.target.value);
   d.onmouseenter=()=>hoverId=n.id;d.onmouseleave=()=>{if(hoverId===n.id)hoverId=null};
   W.appendChild(d);els[n.id]={d,pi:d.querySelector('.pin.i'),po:d.querySelector('.pin.o'),nm,vl}});
+ CULLV=null;Object.values(els).forEach(o=>{o.h=o.d.offsetHeight});
  $('#hint').style.display=Object.keys(p.nodes).length<2?'block':'none';setView();drawWires();renderInspector()}
 function hlj(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/("(?:\\.|[^"\\])*")(\s*:)?|\b(?:true|false|null)\b|-?\d+\.?\d*(?:[eE][+-]?\d+)?/g,(m,q,c)=>q?(c?`<span class="k">${q}</span>${c}`:`<span class="s">${q}</span>`):(m==='null'||m==='true'||m==='false')?`<span class="z">${m}</span>`:`<span class="n">${m}</span>`)}
 function paintJ(){$('#hl').innerHTML=hlj(ta.value)+'\n';$('#gut').textContent=Array.from({length:ta.value.split('\n').length},(_,i)=>i+1).join('\n')}
@@ -700,7 +710,7 @@ function applyLang(){$('#bImp').textContent=t('imp');$('#bNew').textContent=t('n
 applyTheme();
 function syncInspHeight(){const app=document.getElementById('app'),insp=document.getElementById('insp'),pm=document.getElementById('pm');if(!app||!insp)return;const h=app.clientHeight-42;insp.style.height=h+'px';if(pm)pm.style.height=h+'px'}
 addEventListener('resize',syncInspHeight);
-if(window.ResizeObserver)new ResizeObserver(en=>{const r=en[0].contentRect;CVW=Math.round(r.width);CVH=Math.round(r.height);drawGrid();paintWires()}).observe(cv);
+if(window.ResizeObserver)new ResizeObserver(en=>{const r=en[0].contentRect;CVW=Math.round(r.width);CVH=Math.round(r.height);CULLV=null;drawGrid();paintWires();cullNodes()}).observe(cv);
 addEventListener('resize',()=>{drawGrid();paintWires()});
 if(loadAll())show();else{const p=mk('example',SAMPLE);openP(p.id,'n');requestAnimationFrame(fit)}
 applyLang();
