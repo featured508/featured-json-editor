@@ -460,6 +460,8 @@ function paintWires(){const p=cur(),c=document.getElementById('wirec');if(!p||!c
  if(c.width!==W||c.height!==H){c.width=W;c.height=H}
  const x=c.getContext('2d'),v=p.view;x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,W,H);x.setTransform(d*v.z,0,0,d*v.z,d*v.x,d*v.y);x.lineWidth=2.5;x.lineCap='round';
  const R=viewRect();WIRES.forEach(q=>{const k=Math.max(50,Math.abs(q.b[0]-q.a[0])*.5);if(R&&(Math.max(q.a[0],q.b[0],q.a[0]+k,q.b[0]-k)<R[0]||Math.min(q.a[0],q.b[0],q.a[0]+k,q.b[0]-k)>R[2]||Math.max(q.a[1],q.b[1])<R[1]||Math.min(q.a[1],q.b[1])>R[3]))return;x.beginPath();x.moveTo(q.a[0],q.a[1]);x.bezierCurveTo(q.a[0]+k,q.a[1],q.b[0]-k,q.b[1],q.b[0],q.b[1]);x.strokeStyle=q.c;x.setLineDash(q.dash?[6,4]:[]);x.stroke()})}
+let WCT=0,WCON=false;
+function wcOn(){const w=document.getElementById('world');if(!w)return;if(!WCON){w.style.willChange='transform';WCON=true}clearTimeout(WCT);WCT=setTimeout(()=>{w.style.willChange='';WCON=false},180)}
 function viewRect(){const p=cur();if(!p)return null;const[w,h]=cvSize();if(!w||!h)return null;const v=p.view,m=Math.max(300,Math.max(w,h)*.5);return[(-m-v.x)/v.z,(-m-v.y)/v.z,(w+m-v.x)/v.z,(h+m-v.y)/v.z]}
 function cullNodes(){const p=cur();if(!p||!tabs[act]||tabs[act].k!=='n')return;const R=viewRect();if(!R)return;
  const cv0=p.view;if(CULLV&&CULLV.p===p&&CULLV.z===cv0.z&&Math.abs(CULLV.x-cv0.x)<150&&Math.abs(CULLV.y-cv0.y)<150)return;CULLV={p,x:cv0.x,y:cv0.y,z:cv0.z};
@@ -477,22 +479,20 @@ function drawGrid(){const p=cur(),c=document.getElementById('gridc');if(!p||!c)r
   for(let k=Math.ceil(-v.y/step),py=v.y+k*step;py<h;k++,py=v.y+k*step)x.fillRect(0,Math.round(py*d),W,lw)};
  if(!GC){const cs=getComputedStyle(cv);GC={mn:cs.getPropertyValue('--grid-min').trim(),mj:cs.getPropertyValue('--grid-maj').trim()}}
  lines(16*v.z,GC.mn);lines(128*v.z,GC.mj)}
-function setView(){const p=cur();if(!p)return;const v=p.view;$('#world').style.transform=`translate(${v.x}px,${v.y}px) scale(${v.z})`;drawGrid();paintWires();cullNodes();const zt='Zoom '+(Math.abs(v.z-1)<.01?'1:1':v.z.toFixed(2)+':1');if(zt!==ZT){ZT=zt;$('#zm').textContent=zt}}
-function animateView(p,target,dur){if(p._raf)cancelAnimationFrame(p._raf);const s={...p.view},t0=performance.now();dur=dur||300;
- function step(now){const k=Math.min(1,(now-t0)/dur),e=k<.5?2*k*k:-1+(4-2*k)*k;p.view.x=s.x+(target.x-s.x)*e;p.view.y=s.y+(target.y-s.y)*e;p.view.z=s.z+(target.z-s.z)*e;setView();if(k<1)p._raf=requestAnimationFrame(step);else persist()}
- p._raf=requestAnimationFrame(step)}
+function setView(){const p=cur();if(!p)return;const v=p.view;$('#world').style.transform=`translate(${v.x}px,${v.y}px) scale(${v.z})`;drawGrid();paintWires();cullNodes();wcOn();const zt='Zoom '+(Math.abs(v.z-1)<.01?'1:1':v.z.toFixed(2)+':1');if(zt!==ZT){ZT=zt;$('#zm').textContent=zt}}
 function flyTo(p,cx,cy,z){
- if(p._raf)cancelAnimationFrame(p._raf);if(p._zraf){cancelAnimationFrame(p._zraf);p._zraf=null}
- const r=cv.getBoundingClientRect(),hw=r.width/2,hh=r.height/2,v=p.view,c={x:(hw-v.x)/v.z,y:(hh-v.y)/v.z,lz:Math.log(v.z)},tl=Math.log(z);let last=null;
- function step(now){const dt=last===null?16.7:Math.min(50,now-last);last=now;const a=1-Math.exp(-dt/65);
-  c.x+=(cx-c.x)*a;c.y+=(cy-c.y)*a;c.lz+=(tl-c.lz)*a;const sc=Math.exp(c.lz);
-  const done=Math.abs(cx-c.x)*sc<.3&&Math.abs(cy-c.y)*sc<.3&&Math.abs(tl-c.lz)<.0008;
-  if(done){c.x=cx;c.y=cy;c.lz=tl}
-  const zz=Math.exp(c.lz);v.z=zz;v.x=hw-c.x*zz;v.y=hh-c.y*zz;setView();
-  if(done){p._raf=null;persist()}else p._raf=requestAnimationFrame(step)}
+ if(p._raf){cancelAnimationFrame(p._raf);p._raf=null}if(p._zraf){cancelAnimationFrame(p._zraf);p._zraf=null}
+ const r=cv.getBoundingClientRect(),W=r.width,H=r.height,v=p.view,z0=v.z;
+ const c0x=(W/2-v.x)/z0,c0y=(H/2-v.y)/z0,dx=cx-c0x,dy=cy-c0y,lz0=Math.log(z0),dlz=Math.log(z)-lz0,travel=Math.hypot(dx,dy)*z;
+ if(travel<.5&&Math.abs(dlz)<1e-4)return;
+ const M=Math.min(.05,Math.max(.006,56/Math.max(travel,1))),lnM=Math.log(M),zeta=-lnM/Math.sqrt(Math.PI*Math.PI+lnM*lnM),wn=9.2/zeta,sq=Math.sqrt(1-zeta*zeta),wd=wn*sq,cc=zeta/sq,
+  spring=k=>1-Math.exp(-zeta*wn*k)*(Math.cos(wd*k)+cc*Math.sin(wd*k)),dur=Math.min(2000,380+Math.sqrt(travel)*24+Math.abs(dlz)*220);let t0=null;
+ function step(now){if(t0===null)t0=now;const k=Math.min(1,(now-t0)/dur);let vx,vy,zz;
+  if(k>=1){zz=z;vx=W/2-cx*z;vy=H/2-cy*z}else{const e=spring(k),zk=Math.min(1,k/.55);zz=Math.min(2.5,Math.max(.2,Math.exp(lz0+dlz*(1-Math.cos(Math.PI*zk))/2)));vx=W/2-(c0x+dx*e)*zz;vy=H/2-(c0y+dy*e)*zz}
+  if(k>=1||Math.abs(vx-v.x)>.15||Math.abs(vy-v.y)>.15||Math.abs(zz/v.z-1)>2e-4){v.x=vx;v.y=vy;v.z=zz;setView()}
+  if(k<1)p._raf=requestAnimationFrame(step);else{p._raf=null;persist()}}
  p._raf=requestAnimationFrame(step)}
-function smartZoom(id){const p=cur(),n=p.nodes[id];if(!n)return;const r=cv.getBoundingClientRect(),z=p.view.z<1?1:p.view.z,cx=n.x+115,cy=n.y+55;
- flyTo(p,cx,cy,z)}
+function smartZoom(id){const p=cur(),n=p.nodes[id];if(!n)return;flyTo(p,n.x+115,n.y+55,p.view.z<1?1:p.view.z)}
 function renderNodes(){const p=cur(),W=$('#world');W.querySelectorAll('.node').forEach(e=>e.remove());els={};if(!p)return;const{par,reach}=meta(p);$('#bc').textContent=p.name+'  ›  '+t('nodesTab');
  Object.values(p.nodes).forEach(n=>{const d=document.createElement('div'),isR=n.id===p.root,pr=par[n.id],arrP=pr&&p.nodes[pr].t==='array';
   d.className='node'+(reach.has(n.id)?'':' or')+(sel.has(n.id)?' sel':'');d.dataset.id=n.id;d.style.cssText=`left:${n.x}px;top:${n.y}px;--c:${tc(n.t)}`;
