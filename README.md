@@ -1,5 +1,4 @@
 <div align="center">
-
 <h1 style="border-bottom: none">
     <b><a href="https://featured508.github.io/featured-json-editor/">Featured JSON Editor</a></b><br />
     Create, edit and visualize a .json files
@@ -16,10 +15,9 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![GitHub stars](https://img.shields.io/github/stars/featured508/featured-json-editor?style=flat)
-
 </div>
 
-## What is Featured JSON Editor?
+## What is Featured JSON Editor
 
 [Featured JSON Editor](https://featured508.github.io/featured-json-editor/) is a powerful tool for **creating** and **editing** .json files using a intuitive node-based interface.
 
@@ -60,14 +58,14 @@
 ## Keyboard Shortcuts
 | Shortcut | Action |
 |----------|--------|
-| `L` | Select linked nodes |
 | `A` | Select all nodes |
+| `L` | Select linked nodes |
 | `Del` / `X` | Delete selected nodes |
 | `Ctrl + C` | Copy selected nodes |
 | `Ctrl + V` | Paste copied nodes |
 | `Ctrl + Z` | Undo last action |
 
-> **Note:** On macOS, use `Cmd` instead of `Ctrl`.
+> **Note:** On macOS, use `command` instead of `Ctrl`.
 
 ## License
 
