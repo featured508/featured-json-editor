@@ -675,14 +675,14 @@ addEventListener('keydown',e=>{if(e.target.closest('input,select,textarea')||!ta
    lToggle={anchor,phase:1,direct};
   }
  }});
-function fit(){const p=cur();if(!p||!tabs[act]||tabs[act].k!=='n')return;let a=1e9,b=1e9,c=-1e9,d=-1e9;Object.values(p.nodes).forEach(n=>{a=Math.min(a,n.x);b=Math.min(b,n.y);c=Math.max(c,n.x+230);d=Math.max(d,n.y+130)});
- const r=cv.getBoundingClientRect(),z=Math.max(.25,Math.min(1.2,(r.width-80)/(c-a),(r.height-80)/(d-b)));p.view={z,x:(r.width-(c-a)*z)/2-a*z,y:(r.height-(d-b)*z)/2-b*z};setView();persist()}
+function fit(animate){const p=cur();if(!p||!tabs[act]||tabs[act].k!=='n')return;let a=1e9,b=1e9,c=-1e9,d=-1e9;Object.values(p.nodes).forEach(n=>{a=Math.min(a,n.x);b=Math.min(b,n.y);c=Math.max(c,n.x+230);d=Math.max(d,n.y+130)});
+ const r=cv.getBoundingClientRect(),z=Math.max(.25,Math.min(1.2,(r.width-80)/(c-a),(r.height-80)/(d-b)));if(animate===true){flyTo(p,(a+c)/2,(b+d)/2,z);return}p.view={z,x:(r.width-(c-a)*z)/2-a*z,y:(r.height-(d-b)*z)/2-b*z};setView();persist()}
 const newP=()=>{const p=mk('untitled',{});openP(p.id,'n');fit()};
 $('#bNew').onclick=$('#bNew2').onclick=newP;
 $('#bImp').onclick=()=>$('#file').click();
 $('#file').onchange=async e=>{for(const f of e.target.files){try{const v=JSON.parse(await f.text());if(!v||typeof v!=='object')throw new Error('root must be an object or array');const p=mk(f.name,v);openP(p.id,'n');fit()}catch(er){toast(f.name+': '+er.message)}}e.target.value=''};
 $('#bSnap').onclick=e=>{snap=!snap;e.currentTarget.classList.toggle('on',snap)};
-$('#bFit').onclick=fit;
+$('#bFit').onclick=()=>fit(true);
 $('#bArrange').onclick=doArrange;
 $('#bCopy').onclick=async()=>{const p=cur();if(!p)return toast(t('tOpen'));const s=gen(p);try{await navigator.clipboard.writeText(s)}catch(e){const ta2=document.createElement('textarea');ta2.value=s;document.body.appendChild(ta2);ta2.select();try{document.execCommand('copy')}catch(_){}ta2.remove()}toast(t('tCopied'))};
 $('#bExp').onclick=async()=>{const p=cur();if(!p)return toast(t('tOpen'));const s=gen(p),f=p.name+'.json';
