@@ -197,7 +197,7 @@ body.selecting input,body.selecting select,body.selecting textarea{pointer-event
 #hint{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);color:var(--text-dim);text-align:center;line-height:1.8;pointer-events:none;font-size:13px}
 #empty{display:none;align-items:center;justify-content:center;color:var(--text-dim);background:var(--bg-panel);font-size:14px;text-align:center;padding:20px}
 #marq{position:fixed;border:1px solid var(--marq-border);background:var(--marq-fill);pointer-events:none;z-index:6;display:none}
-.node{position:absolute;width:230px;background:var(--node-bg);border:1px solid var(--node-border);border-radius:7px;box-shadow:0 4px 14px rgba(0,0,0,.6);cursor:grab}
+.node{position:absolute;left:0;top:0;width:230px;background:var(--node-bg);border:1px solid var(--node-border);border-radius:7px;box-shadow:0 4px 14px rgba(0,0,0,.6);cursor:grab}
 .node:active{cursor:grabbing}
 .node.sel{outline:2px solid var(--node-sel)}
 .node.or{opacity:.5}
@@ -395,8 +395,8 @@ function indentUnit(){return INDENT>0?INDENT:2}
 let P=[],tabs=[],act=-1,sel=new Set(),snap=true,drag=null,els={},tm,CLIP=null,pasteCount=1,lastStat={ok:true,msg:''},hoverId=null,lToggle={anchor:null,phase:0,direct:false};
 const cur=()=>act>=0&&tabs[act]?P.find(x=>x.id===tabs[act].p):null;
 function toast(m){const e=$('#toast');e.textContent=m;e.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.opacity=0,2600)}
-function persist(){clearTimeout(tm);tm=setTimeout(()=>{try{localStorage.setItem('jc1',JSON.stringify({P,tabs,act}))}catch(e){}},300)}
-function loadAll(){try{const d=JSON.parse(localStorage.getItem('jc1'));if(d&&d.P&&d.P.length){P=d.P;P.forEach(p=>p.undo=p.undo||[]);tabs=d.tabs||[];act=Math.min(d.act??-1,tabs.length-1);return true}}catch(e){}return false}
+function persist(){clearTimeout(tm);tm=setTimeout(()=>{try{localStorage.setItem('jc1',JSON.stringify({P,tabs,act},(k,v)=>(k==='undo'||k==='text'||k==='targetView'||k[0]==='_')?undefined:v))}catch(e){}},300)}
+function loadAll(){try{const d=JSON.parse(localStorage.getItem('jc1'));if(d&&d.P&&d.P.length){P=d.P;P.forEach(p=>{p.undo=[];p.text=gen(p)});tabs=d.tabs||[];act=Math.min(d.act??-1,tabs.length-1);return true}}catch(e){}return false}
 const tOf=v=>v===null?'null':Array.isArray(v)?'array':typeof v==='object'?'object':typeof v==='number'?(Number.isInteger(v)?'integer':'number'):typeof v;
 function buildTree(p,v,name){const id='n'+(++p.seq),tt=tOf(v);const n={id,name,t:tt,c:[],x:0,y:0,v:tt==='boolean'?v:(tt==='string'||tt==='integer'||tt==='number')?String(v):''};p.nodes[id]=n;
  const en=tt==='array'?v.map((a,i)=>[i,a]):tt==='object'?Object.entries(v):[];en.forEach(([k,a])=>n.c.push(buildTree(p,a,String(k))));return id}
@@ -416,10 +416,10 @@ function mk(name,v){const p={id:'p'+Date.now().toString(36)+Math.random().toStri
 function reparse(p,v){p.nodes={};p.seq=0;p.root=buildTree(p,v,'');arrangeFrom(p,p.root,60,60)}
 function sync(){const p=cur();if(!p)return;p.text=gen(p);persist()}
 const meta=p=>{const par={},reach=new Set();Object.values(p.nodes).forEach(n=>n.c.forEach(c=>par[c]=n.id));(function w(i){reach.add(i);p.nodes[i].c.forEach(w)})(p.root);return{par,reach}};
-function keyLabel(p,id){const par=meta(p).par[id];if(par&&p.nodes[par].t==='array')return'['+p.nodes[par].c.indexOf(id)+']';return p.nodes[id].name}
+function keyLabel(p,id){const par=PAR[id];if(par&&p.nodes[par].t==='array')return'['+p.nodes[par].c.indexOf(id)+']';return p.nodes[id].name}
 const isDesc=(p,r,x)=>r===x||p.nodes[r].c.some(c=>isDesc(p,c,x));
 function link(p,a,b){Object.values(p.nodes).forEach(n=>{n.c=n.c.filter(c=>c!==b)});p.nodes[a].c.push(b)}
-function snap_(p){if(!p)return;p.undo=p.undo||[];p.undo.push(JSON.stringify({nodes:p.nodes,seq:p.seq,root:p.root}));if(p.undo.length>60)p.undo.shift()}
+function snap_(p){if(!p)return;p.undo=p.undo||[];p.undo.push(JSON.stringify({nodes:p.nodes,seq:p.seq,root:p.root}));const lim=p.undo[p.undo.length-1].length>300000?15:60;while(p.undo.length>lim)p.undo.shift()}
 function undo(){const p=cur();if(!p||!p.undo||!p.undo.length)return;const d=JSON.parse(p.undo.pop());p.nodes=d.nodes;p.seq=d.seq;p.root=d.root;setSel([]);renderNodes();sync()}
 function connect(p,a,b){const A=p.nodes[a];if(!CT(A.t)||b===p.root||a===b)return toast(t('tNoConn'));if(isDesc(p,b,a))return toast(t('tNoDesc'));snap_(p);link(p,a,b);renderNodes();sync()}
 function unlink(id){const p=cur();snap_(p);Object.values(p.nodes).forEach(n=>{n.c=n.c.filter(c=>c!==id)});renderNodes();sync()}
@@ -430,7 +430,7 @@ function serialize(p,id){const n=p.nodes[id];return{name:n.name,t:n.t,v:n.v,x:n.
 function inflate(p,node,dx,dy){const id='n'+(++p.seq);p.nodes[id]={id,name:node.name,t:node.t,v:node.v,x:node.x+dx,y:node.y+dy,c:node.c.map(c=>inflate(p,c,dx,dy))};return id}
 function copyIds(ids){const p=cur();if(!p||!ids.length)return;const{par}=meta(p);const idSet=new Set(ids);const tops=ids.filter(id=>{let a=par[id];while(a){if(idSet.has(a))return false;a=par[a]}return true});if(!tops.length)return;CLIP=tops.map(id=>({parent:par[id]||null,tree:serialize(p,id)}));pasteCount=1;toast(t('tNodeCopied'))}
 function pasteClip(){const p=cur();if(!p||!CLIP||!CLIP.length||!tabs[act]||tabs[act].k!=='n')return;snap_(p);const dx=30*pasteCount,dy=30*pasteCount;const ids=CLIP.map(item=>{const id=inflate(p,item.tree,dx,dy);if(item.parent&&p.nodes[item.parent])link(p,item.parent,id);return id});pasteCount++;renderNodes();setSel(ids);sync();toast(t('tPasted'))}
-function duplicate(id){const p=cur();const n=p.nodes[id];if(!n)return;const par=meta(p).par[id]||null;snap_(p);const nid=inflate(p,serialize(p,id),30,30);if(par)link(p,par,nid);renderNodes();setSel([nid]);sync()}
+function duplicate(id){const p=cur();const n=p.nodes[id];if(!n)return;const par=PAR[id]||null;snap_(p);const nid=inflate(p,serialize(p,id),30,30);if(par)link(p,par,nid);renderNodes();setSel([nid]);sync()}
 function duplicateIds(ids){const p=cur();if(!p)return;const{par}=meta(p);const tops=ids.filter(id=>{let a=par[id];while(a){if(ids.includes(a))return false;a=par[a]}return true});if(!tops.length)return;snap_(p);
  const newIds=tops.map(id=>{const nid=inflate(p,serialize(p,id),30,30);const pa=par[id];if(pa)link(p,pa,nid);return nid});renderNodes();setSel(newIds);sync()}
 function deleteIds(ids){const p=cur();if(!p)return;snap_(p);ids.forEach(id=>{if(id!==p.root)del(p,id)});setSel([]);renderNodes();sync()}
@@ -441,20 +441,22 @@ function doArrange(){const p=cur();if(!p||!tabs[act]||tabs[act].k!=='n')return;s
  renderNodes();sync()}
 function activeEl(el){return el&&el===document.activeElement}
 function syncMirror(id){const p=cur();const n=p&&p.nodes[id];if(!n)return;
+ if(els[id]&&!('nm' in els[id])){els[id].nm=els[id].d.querySelector('.nm');els[id].vl=els[id].d.querySelector('.vl')}
  if(els[id]){if(els[id].nm&&!activeEl(els[id].nm)&&!els[id].nm.disabled)els[id].nm.value=n.name;
   if(els[id].vl&&!activeEl(els[id].vl)){if(n.t==='boolean')els[id].vl.value=n.v?'1':'';else els[id].vl.value=n.v}}
  const card=document.querySelector(`.icard[data-id="${id}"]`);
  if(card){const inm=card.querySelector('.i-nm'),ivl=card.querySelector('.i-vl');
   if(inm&&!activeEl(inm)&&!inm.disabled)inm.value=n.name;
   if(ivl&&!activeEl(ivl)){if(n.t==='boolean')ivl.value=n.v?'1':'';else ivl.value=n.v}}}
-function paintSel(){Object.entries(els).forEach(([i,o])=>o.d.classList.toggle('sel',sel.has(i)))}
+let PS=new Set(),_is=0;
+function paintSel(){PS.forEach(i=>{if(!sel.has(i)&&els[i])els[i].d.classList.remove('sel')});sel.forEach(i=>{if(!PS.has(i)&&els[i])els[i].d.classList.add('sel')});PS=new Set(sel)}
+function inspSoon(){if(_is)return;_is=requestAnimationFrame(()=>{_is=0;renderInspector()})}
 function setSel(a){sel=new Set(a);paintSel();renderInspector()}
-function pp(n,pin,d){let x=0,y=0,e=pin;while(e&&e!==d){x+=e.offsetLeft;y+=e.offsetTop;e=e.offsetParent}return[n.x+x+pin.offsetWidth/2,n.y+y+pin.offsetHeight/2]}
 function wire(a,b){const d=Math.max(50,Math.abs(b[0]-a[0])*.5);return`M${a[0]},${a[1]}C${a[0]+d},${a[1]} ${b[0]-d},${b[1]} ${b[0]},${b[1]}`}
 let WIRES=[],CVW=0,CVH=0,ZT='';
 function cvSize(){if(!CVW||!CVH){CVW=cv.clientWidth;CVH=cv.clientHeight}return[CVW,CVH]}
-function drawWires(){const p=cur();WIRES=[];if(p){Object.values(p.nodes).forEach(n=>{const a=els[n.id];n.c.forEach(c=>{const e=els[c];if(a&&e&&a.po&&e.pi)WIRES.push({a:pp(n,a.po,a.d),b:pp(p.nodes[c],e.pi,e.d),c:tc(n.t)})})});
- if(drag&&drag.k==='w'){const a=els[drag.from];WIRES.push({a:pp(p.nodes[drag.from],a.po,a.d),b:drag.pt,c:'#fff',dash:1})}}
+function drawWires(){const p=cur();WIRES=[];if(p){Object.values(p.nodes).forEach(n=>{const a=els[n.id];n.c.forEach(c=>{const e=els[c];if(a&&e&&a.poo&&e.pio){const m=p.nodes[c];WIRES.push({a:[n.x+a.poo[0],n.y+a.poo[1]],b:[m.x+e.pio[0],m.y+e.pio[1]],c:tc(n.t)})}})});
+ if(drag&&drag.k==='w'){const a=els[drag.from],fn=p.nodes[drag.from];if(a&&a.poo)WIRES.push({a:[fn.x+a.poo[0],fn.y+a.poo[1]],b:drag.pt,c:'#fff',dash:1})}}
  paintWires()}
 function paintWires(){const p=cur(),c=document.getElementById('wirec');if(!p||!c)return;const[w,h]=cvSize(),d=window.devicePixelRatio||1,W=Math.round(w*d),H=Math.round(h*d);if(!W||!H)return;
  if(c.width!==W||c.height!==H){c.width=W;c.height=H}
@@ -493,21 +495,29 @@ function flyTo(p,cx,cy,z){
   if(k<1)p._raf=requestAnimationFrame(step);else{p._raf=null;persist()}}
  p._raf=requestAnimationFrame(step)}
 function smartZoom(id){const p=cur(),n=p.nodes[id];if(!n)return;flyTo(p,n.x+115,n.y+55,p.view.z<1?1:p.view.z)}
-function renderNodes(){const p=cur(),W=$('#world');W.querySelectorAll('.node').forEach(e=>e.remove());els={};if(!p)return;const{par,reach}=meta(p);$('#bc').textContent=p.name+'  ›  '+t('nodesTab');
- Object.values(p.nodes).forEach(n=>{const d=document.createElement('div'),isR=n.id===p.root,pr=par[n.id],arrP=pr&&p.nodes[pr].t==='array';
-  d.className='node'+(reach.has(n.id)?'':' or')+(sel.has(n.id)?' sel':'');d.dataset.id=n.id;d.style.cssText=`left:${n.x}px;top:${n.y}px;--c:${tc(n.t)}`;
-  d.innerHTML=`<div class="hd"><b>${TY[n.t].i}</b>${isR?t('root')+' · ':''}${TY[n.t].l}</div>`+
-   (isR?'':`<div class="row"><span class="pin i" title="dblclick/alt to unlink"></span><label>${t('inspName')}</label><input class="nm"></div>`)+
-   `<div class="row"><label>${t('inspType')}</label><select class="ty">${(isR?['object','array']:Object.keys(TY)).map(tt=>`<option value="${tt}"${tt===n.t?' selected':''}>${TY[tt].l}</option>`).join('')}</select></div>`+
-   (n.t==='boolean'?`<div class="row"><label>${t('inspValue')}</label><select class="vl"><option value="1">true</option><option value="">false</option></select></div>`:(n.t==='null'||CT(n.t))?'':`<div class="row"><label>${t('inspValue')}</label><input class="vl"></div>`)+
-   (CT(n.t)?`<div class="row" style="justify-content:flex-end;color:var(--text-dim)">${n.c.length}<span class="pin o fill"></span></div>`:'');
-  const nm=d.querySelector('.nm');if(nm){nm.value=arrP?`[${p.nodes[pr].c.indexOf(n.id)}]`:n.name;nm.disabled=!!arrP;nm.oninput=()=>{n.name=nm.value;sync();syncMirror(n.id)}}
-  const vl=d.querySelector('.vl');if(vl){if(n.t==='boolean'){vl.value=n.v?'1':'';vl.onchange=()=>{n.v=!!vl.value;sync();syncMirror(n.id)}}else{vl.value=n.v;vl.oninput=()=>{n.v=vl.value;sync();syncMirror(n.id)}}}
-  d.querySelector('.ty').onchange=e=>chT(p,n,e.target.value);
-  d.onmouseenter=()=>hoverId=n.id;d.onmouseleave=()=>{if(hoverId===n.id)hoverId=null};
-  W.appendChild(d);els[n.id]={d,pi:d.querySelector('.pin.i'),po:d.querySelector('.pin.o'),nm,vl}});
- CULLV=null;Object.values(els).forEach(o=>{o.h=o.d.offsetHeight});
- $('#hint').style.display=Object.keys(p.nodes).length<2?'block':'none';setView();drawWires();renderInspector()}
+const ESC={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'},esc=x=>String(x).replace(/[&<>"']/g,c=>ESC[c]);
+function pinOff(d,pin){if(!pin)return null;let x=0,y=0,e=pin;while(e&&e!==d){x+=e.offsetLeft;y+=e.offsetTop;e=e.offsetParent}return[x+pin.offsetWidth/2,y+pin.offsetHeight/2]}
+function renderNodes(){const p=cur(),W=$('#world');els={};if(!p){W.innerHTML='';return}const{par,reach}=meta(p);$('#bc').textContent=p.name+'  ›  '+t('nodesTab');
+ const ids=Object.keys(p.nodes),lbN=t('inspName'),lbT=t('inspType'),lbV=t('inspValue'),rootL=t('root'),optC={};
+ const opts=(isR,sv)=>{const k=(isR?'r':'f')+sv;return optC[k]||(optC[k]=(isR?['object','array']:Object.keys(TY)).map(tt=>`<option value="${tt}"${tt===sv?' selected':''}>${TY[tt].l}</option>`).join(''))};
+ const parts=new Array(ids.length);
+ ids.forEach((id,i)=>{const n=p.nodes[id],isR=id===p.root,pr=par[id],arrP=pr&&p.nodes[pr].t==='array',ct=CT(n.t);
+  parts[i]=`<div class="node${reach.has(id)?'':' or'}${sel.has(id)?' sel':''}" data-id="${id}" style="transform:translate(${n.x}px,${n.y}px);--c:${tc(n.t)}"><div class="hd"><b>${TY[n.t].i}</b>${isR?rootL+' · ':''}${TY[n.t].l}</div>`+
+   (isR?'':`<div class="row"><span class="pin i" title="dblclick/alt to unlink"></span><label>${lbN}</label><input class="nm" value="${esc(arrP?'['+p.nodes[pr].c.indexOf(id)+']':n.name)}"${arrP?' disabled':''}></div>`)+
+   `<div class="row"><label>${lbT}</label><select class="ty">${opts(isR,n.t)}</select></div>`+
+   (n.t==='boolean'?`<div class="row"><label>${lbV}</label><select class="vl"><option value="1"${n.v?' selected':''}>true</option><option value=""${n.v?'':' selected'}>false</option></select></div>`:(n.t==='null'||ct)?'':`<div class="row"><label>${lbV}</label><input class="vl" value="${esc(n.v)}"></div>`)+
+   (ct?`<div class="row" style="justify-content:flex-end;color:var(--text-dim)">${n.c.length}<span class="pin o fill"></span></div>`:'')+`</div>`});
+ W.innerHTML=parts.join('');
+ const kids=W.children;ids.forEach((id,i)=>{const d=kids[i];els[id]={d,pi:d.querySelector('.pin.i'),po:d.querySelector('.pin.o')}});
+ CULLV=null;for(const id in els){const o=els[id];o.h=o.d.offsetHeight;o.pio=pinOff(o.d,o.pi);o.poo=pinOff(o.d,o.po)}
+ PS=new Set(sel);
+ $('#hint').style.display=ids.length<2?'block':'none';setView();drawWires();renderInspector()}
+(function(){const W0=document.getElementById('world');
+ const nodeOf=e=>{const nd=e.target.closest&&e.target.closest('.node'),p=cur();return nd&&p?p.nodes[nd.dataset.id]:null};
+ W0.addEventListener('input',e=>{const tg=e.target;if(tg.tagName!=='INPUT')return;const n=nodeOf(e);if(!n)return;if(tg.classList.contains('nm'))n.name=tg.value;else if(tg.classList.contains('vl'))n.v=tg.value;else return;sync();syncMirror(n.id)});
+ W0.addEventListener('change',e=>{const tg=e.target;if(tg.tagName!=='SELECT')return;const n=nodeOf(e);if(!n)return;if(tg.classList.contains('ty'))chT(cur(),n,tg.value);else if(tg.classList.contains('vl')){n.v=!!tg.value;sync();syncMirror(n.id)}});
+ W0.addEventListener('mouseover',e=>{const nd=e.target.closest?e.target.closest('.node'):null;hoverId=nd?nd.dataset.id:null});
+ W0.addEventListener('mouseleave',()=>{hoverId=null})})();
 function hlj(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/("(?:\\.|[^"\\])*")(\s*:)?|\b(?:true|false|null)\b|-?\d+\.?\d*(?:[eE][+-]?\d+)?/g,(m,q,c)=>q?(c?`<span class="k">${q}</span>${c}`:`<span class="s">${q}</span>`):(m==='null'||m==='true'||m==='false')?`<span class="z">${m}</span>`:`<span class="n">${m}</span>`)}
 function paintJ(){$('#hl').innerHTML=hlj(ta.value)+'\n';$('#gut').textContent=Array.from({length:ta.value.split('\n').length},(_,i)=>i+1).join('\n')}
 function stat(ok,m){lastStat={ok,msg:m||''};const s=$('#stat');s.className=ok?'':'er';s.textContent=ok?t('statOk'):t('errPre')+m}
@@ -544,13 +554,13 @@ function renderInspector(){const box=$('#ib'),p=cur();
  if(!p||!tabs[act]||tabs[act].k!=='n'){box.innerHTML=`<div class="imsg">${t('inspNone')}</div>`;return}
  const ids=[...sel].filter(id=>p.nodes[id]);
  if(ids.length===0){box.innerHTML=`<div class="imsg">${t('inspNone')}</div>`;return}
- const shown=ids.slice(0,INSP_CAP);
+ const shown=ids.slice(0,INSP_CAP),PAR=meta(p).par;
  let h='';
  shown.forEach(id=>{
   const n=p.nodes[id];if(!n)return;
-  const isR=id===p.root,par=meta(p).par[id],arrP=par&&p.nodes[par].t==='array';
+  const isR=id===p.root,par=PAR[id],arrP=par&&p.nodes[par].t==='array';
   let parentInfo='';
-  if(par){const pn=p.nodes[par],kind=pn.t==='array'?'arr':'obj',label=par===p.root?t('root'):`"${keyLabel(p,par)}"`;parentInfo=`<span class="iparent">${kind}: ${label}</span>`}
+  if(par){const pn=p.nodes[par],kind=pn.t==='array'?'arr':'obj',label=par===p.root?t('root'):`"${PAR[par]&&p.nodes[PAR[par]].t==='array'?'['+p.nodes[PAR[par]].c.indexOf(par)+']':p.nodes[par].name}"`;parentInfo=`<span class="iparent">${kind}: ${label}</span>`}
   h+=`<div class="icard" data-id="${id}"><div class="ihd" style="--c:${tc(n.t)}"><b>${TY[n.t].i}</b><span class="ihd-ttl">${isR?t('root'):TY[n.t].l}</span>${parentInfo}</div><div class="ibody">`;
   if(!isR)h+=`<div class="ifield"><label>${t('inspName')}</label><input class="i-nm" ${arrP?'disabled':''}></div>`;
   h+=`<div class="ifield"><label>${t('inspType')}</label><select class="i-ty">${(isR?['object','array']:Object.keys(TY)).map(k=>`<option value="${k}"${k===n.t?' selected':''}>${TY[k].l}</option>`).join('')}</select></div>`;
@@ -563,7 +573,7 @@ function renderInspector(){const box=$('#ib'),p=cur();
  box.innerHTML=h;
  box.querySelectorAll('.icard').forEach(card=>{
   const id=card.dataset.id,n=p.nodes[id];if(!n)return;
-  const isR=id===p.root,par=meta(p).par[id],arrP=par&&p.nodes[par].t==='array';
+  const isR=id===p.root,par=PAR[id],arrP=par&&p.nodes[par].t==='array';
   const nm=card.querySelector('.i-nm');if(nm){nm.value=arrP?`[${p.nodes[par].c.indexOf(id)}]`:n.name;nm.oninput=()=>{n.name=nm.value;sync();syncMirror(id)}}
   card.querySelector('.i-ty').onchange=e=>chT(p,n,e.target.value);
   const vl=card.querySelector('.i-vl');if(vl){if(n.t==='boolean'){vl.value=n.v?'1':'';vl.onchange=()=>{n.v=!!vl.value;sync();syncMirror(id)}}else{vl.value=n.v;vl.oninput=()=>{n.v=vl.value;sync();syncMirror(id)}}}
@@ -599,10 +609,11 @@ function menu(e,from){const r=cv.getBoundingClientRect(),m=$('#menu'),p=cur(),pt
 function rectsOverlap(a,b){return !(b.left>a.right||b.right<a.left||b.top>a.bottom||b.bottom<a.top)}
 function updateMarq(){const m=$('#marq'),l=Math.min(drag.x0,drag.x1),r=Math.max(drag.x0,drag.x1),tp=Math.min(drag.y0,drag.y1),bt=Math.max(drag.y0,drag.y1);
  m.style.left=l+'px';m.style.top=tp+'px';m.style.width=(r-l)+'px';m.style.height=(bt-tp)+'px';m.style.display='block';
- const mrect={left:l,right:r,top:tp,bottom:bt},ns=new Set(drag.base);
- Object.entries(els).forEach(([id,o])=>{if(rectsOverlap(mrect,o.d.getBoundingClientRect()))ns.add(id)});
- sel=ns;paintSel();renderInspector()}
+ const p=cur(),R=cv.getBoundingClientRect(),v=p.view,wx0=(l-R.left-v.x)/v.z,wx1=(r-R.left-v.x)/v.z,wy0=(tp-R.top-v.y)/v.z,wy1=(bt-R.top-v.y)/v.z,ns=new Set(drag.base);
+ for(const id in els){const n=p.nodes[id];if(n&&n.x<wx1&&n.x+230>wx0&&n.y<wy1&&n.y+(els[id].h||160)>wy0)ns.add(id)}
+ sel=ns;paintSel();inspSoon()}
 cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('scroll',()=>{if(cv.scrollTop||cv.scrollLeft){cv.scrollTop=0;cv.scrollLeft=0}});
 cv.addEventListener('selectstart',e=>{if(!e.target.closest||!e.target.closest('input,textarea,select'))e.preventDefault()});
 cv.addEventListener('mousedown',e=>{if(e.target.closest&&e.target.closest('input,textarea,select'))return;e.preventDefault();const a=document.activeElement;if(a&&a!==document.body&&a.blur)a.blur()});
 cv.addEventListener('pointerdown',e=>{const p=cur();if(!p||e.target.closest('#menu'))return;hideMenu();if(p._raf){cancelAnimationFrame(p._raf);p._raf=null}
@@ -619,7 +630,7 @@ cv.addEventListener('dblclick',e=>{if(e.target.classList.contains('pin')&&e.targ
  const nd=e.target.closest('.node');if(nd&&!e.target.closest('input,select'))smartZoom(nd.dataset.id)});
 addEventListener('pointermove',e=>{if(!drag)return;const p=cur();
  if(drag.k==='n'){const dx=(e.clientX-drag.x0)/p.view.z,dy=(e.clientY-drag.y0)/p.view.z;drag.m=1;
-  drag.s.forEach(([i,x,y])=>{const n=p.nodes[i];let nx=x+dx,ny=y+dy;if(snap){nx=Math.round(nx/16)*16;ny=Math.round(ny/16)*16}n.x=nx;n.y=ny;els[i].d.style.left=nx+'px';els[i].d.style.top=ny+'px'});drawWires()}
+  drag.s.forEach(([i,x,y])=>{const n=p.nodes[i];let nx=x+dx,ny=y+dy;if(snap){nx=Math.round(nx/16)*16;ny=Math.round(ny/16)*16}n.x=nx;n.y=ny;els[i].d.style.transform='translate('+nx+'px,'+ny+'px)'});drawWires()}
  else if(drag.k==='pan'){const dx=e.clientX-drag.x0,dy=e.clientY-drag.y0;drag.m=Math.max(drag.m,Math.hypot(dx,dy));p.view.x=drag.vx+dx;p.view.y=drag.vy+dy;setView()}
  else if(drag.k==='sel'){drag.x1=e.clientX;drag.y1=e.clientY;updateMarq()}
  else{drag.pt=w2(e);drawWires()}});
