@@ -416,7 +416,7 @@ function mk(name,v){const p={id:'p'+Date.now().toString(36)+Math.random().toStri
 function reparse(p,v){p.nodes={};p.seq=0;p.root=buildTree(p,v,'');arrangeFrom(p,p.root,60,60)}
 function sync(){const p=cur();if(!p)return;p.text=gen(p);persist()}
 const meta=p=>{const par={},reach=new Set();Object.values(p.nodes).forEach(n=>n.c.forEach(c=>par[c]=n.id));(function w(i){reach.add(i);p.nodes[i].c.forEach(w)})(p.root);return{par,reach}};
-function keyLabel(p,id){const par=PAR[id];if(par&&p.nodes[par].t==='array')return'['+p.nodes[par].c.indexOf(id)+']';return p.nodes[id].name}
+function keyLabel(p,id){const par=meta(p).par[id];if(par&&p.nodes[par].t==='array')return'['+p.nodes[par].c.indexOf(id)+']';return p.nodes[id].name}
 const isDesc=(p,r,x)=>r===x||p.nodes[r].c.some(c=>isDesc(p,c,x));
 function link(p,a,b){Object.values(p.nodes).forEach(n=>{n.c=n.c.filter(c=>c!==b)});p.nodes[a].c.push(b)}
 function snap_(p){if(!p)return;p.undo=p.undo||[];p.undo.push(JSON.stringify({nodes:p.nodes,seq:p.seq,root:p.root}));const lim=p.undo[p.undo.length-1].length>300000?15:60;while(p.undo.length>lim)p.undo.shift()}
@@ -430,7 +430,7 @@ function serialize(p,id){const n=p.nodes[id];return{name:n.name,t:n.t,v:n.v,x:n.
 function inflate(p,node,dx,dy){const id='n'+(++p.seq);p.nodes[id]={id,name:node.name,t:node.t,v:node.v,x:node.x+dx,y:node.y+dy,c:node.c.map(c=>inflate(p,c,dx,dy))};return id}
 function copyIds(ids){const p=cur();if(!p||!ids.length)return;const{par}=meta(p);const idSet=new Set(ids);const tops=ids.filter(id=>{let a=par[id];while(a){if(idSet.has(a))return false;a=par[a]}return true});if(!tops.length)return;CLIP=tops.map(id=>({parent:par[id]||null,tree:serialize(p,id)}));pasteCount=1;toast(t('tNodeCopied'))}
 function pasteClip(){const p=cur();if(!p||!CLIP||!CLIP.length||!tabs[act]||tabs[act].k!=='n')return;snap_(p);const dx=30*pasteCount,dy=30*pasteCount;const ids=CLIP.map(item=>{const id=inflate(p,item.tree,dx,dy);if(item.parent&&p.nodes[item.parent])link(p,item.parent,id);return id});pasteCount++;renderNodes();setSel(ids);sync();toast(t('tPasted'))}
-function duplicate(id){const p=cur();const n=p.nodes[id];if(!n)return;const par=PAR[id]||null;snap_(p);const nid=inflate(p,serialize(p,id),30,30);if(par)link(p,par,nid);renderNodes();setSel([nid]);sync()}
+function duplicate(id){const p=cur();const n=p.nodes[id];if(!n)return;const par=meta(p).par[id]||null;snap_(p);const nid=inflate(p,serialize(p,id),30,30);if(par)link(p,par,nid);renderNodes();setSel([nid]);sync()}
 function duplicateIds(ids){const p=cur();if(!p)return;const{par}=meta(p);const tops=ids.filter(id=>{let a=par[id];while(a){if(ids.includes(a))return false;a=par[a]}return true});if(!tops.length)return;snap_(p);
  const newIds=tops.map(id=>{const nid=inflate(p,serialize(p,id),30,30);const pa=par[id];if(pa)link(p,pa,nid);return nid});renderNodes();setSel(newIds);sync()}
 function deleteIds(ids){const p=cur();if(!p)return;snap_(p);ids.forEach(id=>{if(id!==p.root)del(p,id)});setSel([]);renderNodes();sync()}
